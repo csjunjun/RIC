@@ -5,7 +5,15 @@ Please download the datasets and the weight of RIC pre-trained on VGGFace2 or SV
 
 ## Train 
 
+Take the training on the VGGFace2 dataset for an example:
+1. Go to VGGFace2.py, set the variable stage='train'.
+2. Run VGGFace2.py
+
 ## Test
+
+Take the training on the VGGFace2 dataset for an example,
+1. Go to VGGFace2.py, set the variable stage='test'.
+2. Run VGGFace2.py
 
 
 

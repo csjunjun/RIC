@@ -8,34 +8,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.autograd import Variable
-from torch import utils
-import torch.nn as nn
-import torch.nn.functional as F
+
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import pickle
-from torchvision import datasets, utils
-import torchvision.transforms as transforms
-from torchvision.transforms import ToPILImage,ToTensor
-from random import shuffle
 from torchvision.utils import make_grid,save_image
 from facenet_pytorch import MTCNN, InceptionResnetV1
-from junINN import innV
 import juncw
-from torch.utils.data import Dataset
-import pandas as pd
 import shutil
-from datetime import datetime
-import json
 from RIC import Net
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity,mean_squared_error
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 import PerceptualSimilarity.models
 from dataset import VGGFace2
-# Directory path
-# os.chdir("..")
-# cwd = 'input'
-
 
 def setSeed(seed):
     np.random.seed(seed) 
@@ -44,10 +28,8 @@ def setSeed(seed):
         torch.cuda.manual_seed(seed) 
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = False       
+        torch.backends.cudnn.benchmark = False         #为了保证相同Key时生成的NAE一致，test阶段必须设置为false
         torch.backends.cudnn.deterministic = True
-    #torch.backends.cudnn.benchmark = False    #test阶段需要实现相同的attack的时候设置为false
-
 
 def getCEloss(labels,outputs):
     one_hot_labels = torch.eye(len(outputs[0]))[labels].to(device)
@@ -58,10 +40,8 @@ def getCEloss(labels,outputs):
     return torch.clamp((i-j), min=-kappa)
     
 
-
 def attack1_loss(S_prime, mix_img, S,C,  B,labels):
     ''' Calculates loss specified on the paper.'''
-    
 
     loss_secret = torch.nn.functional.mse_loss(S_prime,  S*_std_torch+_mean_torch)
     loss_cover= torch.nn.functional.mse_loss(mix_img,  C)
@@ -69,8 +49,6 @@ def attack1_loss(S_prime, mix_img, S,C,  B,labels):
     classloss = torch.mean(getCEloss(labels,outputs))
     
     loss_all =   B*loss_secret  + loss_cover + classloss
-    #loss_all = -loss_cover + B * loss_secret + classloss + loss_cover2
-
     
     return loss_all, loss_secret,classloss,loss_cover
 
@@ -87,8 +65,7 @@ def valmetric(S_prime, mix_img, S,C,  B,labels):
     norm_mix_image = convert1(mix_img)
     mse_sc,psnr_sc,ssim_sc,lpips_sc,lpips_error = [], [], [],[],[]
     for i in range(len(S_prime)):
-        # mse_s.append(mean_squared_error(norm_S_prime[i], norm_S[i]))
-        # mse_c.append(mean_squared_error(norm_miximg[i], norm_C[i]))
+     
         mse_s.append(float(torch.norm((S*_std_torch+_mean_torch)[i]-S_prime[i])))
         mse_c.append(float(torch.norm(C[i]-mix_img[i])))
         psnr.append(peak_signal_noise_ratio(norm_S[i],norm_S_prime[i],data_range=255))
@@ -102,55 +79,9 @@ def valmetric(S_prime, mix_img, S,C,  B,labels):
         ssim_sc.append(structural_similarity(norm_S[i],norm_mix_image[i],win_size=11, data_range=255.0, multichannel=True))
         tmp = modellp.forward((S*_std_torch+_mean_torch)[i], mix_img[i],normalize=True)
         lpips_sc.append(float(tmp))
-    #ssim_secret =0 
     return acc_num, np.sum(mse_s), np.sum(mse_c),np.sum(psnr),np.sum(ssim),np.sum(mean_pixel_error),\
         np.sum(lpips_error),np.sum(lpips_sc),np.sum(mse_sc),np.sum(psnr_sc),np.sum(ssim_sc)
 
-
-def facevalmetric(S_prime, mix_img, S,C):
-    ''' Calculates loss specified on the paper.'''
-    embed_anchor = target_model(S)
-    embed = target_model(mix_img)
-    diff = torch.norm(embed-embed_anchor,dim=1)
-
-    acc_num = len(torch.where(diff<ver_threshold)[0])    
-    psnr, ssim, mse_s,mse_c = [], [], [],[]
-    norm_S =  convert1(S)
-    norm_S_prime = convert1(S_prime)
-    norm_miximg = convert1(mix_img)
-    norm_C = convert1(C)
-    for i in range(len(S_prime)):
-        # mse_s.append(mean_squared_error(norm_S_prime[i], norm_S[i]))
-        # mse_c.append(mean_squared_error(norm_miximg[i], norm_C[i]))
-        mse_s.append(float(torch.norm((S)[i]-S_prime[i])))
-        mse_c.append(float(torch.norm(C[i]-mix_img[i])))
-        psnr.append(peak_signal_noise_ratio(norm_S[i],norm_S_prime[i],data_range=255))
-        ssim.append(structural_similarity(norm_S[i],norm_S_prime[i],win_size=11, data_range=255.0, multichannel=True))
-    #ssim_secret =0 
-    return acc_num, np.sum(mse_s), np.sum(mse_c),np.sum(psnr),np.sum(ssim)
-
-def denormalize(image, std, mean):
-    ''' Denormalizes a tensor of images.'''
-
-    for t in range(3):
-        image[t, :, :] = (image[t, :, :] * std[t]) + mean[t]
-    return image
-
-def imshow(img, idx, learning_rate, beta):
-    '''Prints out an image given in tensor format.'''
-    
-    img = denormalize(img, std, mean)
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.title('Example '+str(idx)+', lr='+str(learning_rate)+', B='+str(beta))
-    plt.show()
-    return
-
-def gaussian(tensor, mean=0, stddev=0.1):
-    '''Adds random noise to a tensor.'''
-    
-    noise = torch.nn.init.normal(torch.Tensor(tensor.size()), 0, 0.1).to(device)
-    return Variable(tensor + noise)
 
 
 def load_checkpoint(filepath):
@@ -278,8 +209,7 @@ def train_model(train_loader, beta, learning_rate):
             print('Training: Batch {0}/{1}. Loss of {2:.4f},secret loss of {3:.4f}, attack1_loss of {4:.4f}, loss_cover {5:.5f}'\
                   .format(idx+1, len(train_loader), train_loss.data,  train_loss_secret.data,attloss.data,loss_cover))
     
-            # val 
-            if (idx+1)%val_freq == 0 or train_num-idx*(batch_size+1)<=batch_size or idx==1:
+            if (idx+1)%save_freq == 0 or train_num-idx*(batch_size+1)<=batch_size or idx==1:
                
                 is_best = False
                 modelsavepath =MODELS_PATH+'Epoch_{}_{}'.format(epoch+1,outputname)
@@ -388,28 +318,22 @@ if __name__ == "__main__":
 
     cwd = os.getcwd()
     # Hyper Parameters
-    ver_threshold = 1.242
     print_freq = 200
-    val_freq = 200
-    valnum = 50
-    testnum = 500
+    save_freq = 200
     #num_epochs = 10
     num_epochs = 100
-    #batch_size = 32
-    batch_size = 5
-    #test_batch_size=10
-    test_batch_size=1
+    batch_size = 32
+    test_batch_size=5
     face_size = 160
-    mtcnn =MTCNN(image_size=face_size)
     nrow_ = 4
     learning_rate = 0.0001
     beta = 10
-    imgsize=160
-    std = [0.5, 0.5, 0.5]
-    mean = [0.5, 0.5, 0.5]
+    seed = 1
+
+
     cuda = torch.cuda.is_available()
     #setSeed(1337)
-    seed = 1
+    
     setSeed(seed)
     print(seed)
 
@@ -441,8 +365,6 @@ if __name__ == "__main__":
     train_num =VGGFace2_train_data.imgnum
 
     
-    
-
     
     _mean_torch = torch.tensor((0.5, 0.5, 0.5)).view(3,1,1).to(device)
     _std_torch = torch.tensor((0.5, 0.5, 0.5)).view(3,1,1).to(device)
