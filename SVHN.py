@@ -369,13 +369,7 @@ if __name__ == "__main__":
     print("beta : {}".format(beta))
     imgsize=32
 
-
-    MODELS_PATH = '/data/junliu/DeepSteg/output/'
-
-
-    TRAIN_PATH = '/data2/junliu/data/ImageNet_train_jinyu'
-    TEST_PATH ='/data2/junliu/data/ImageNet_val'
-    if not os.path.exists(MODELS_PATH): os.mkdir(MODELS_PATH)
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     target_model, ds_fetcher, is_imagenet = selector.select('svhn') #labels:0:数字1,...,9:数字10
     target_model.eval().to(device)
@@ -391,7 +385,6 @@ if __name__ == "__main__":
     net = Net(residual_en,residual_de,lambda_net)
     net = torch.nn.DataParallel(net).cuda()
     optimizer = optim.Adam(net.parameters(), lr=learning_rate)
-    #scheduler = ReduceLROnPlateau(optimizer, patience=5, factor=0.5,mode='min') 
  
 
     train_loader = ds_fetcher(batch_size=batch_size,train=True,val=False)
@@ -402,6 +395,6 @@ if __name__ == "__main__":
     _std_torch = torch.tensor((0.5, 0.5, 0.5)).view(3,1,1).to(device)
 
     if stage == "test":
-
+        test()
     elif stage == "train":
-        
+        net, mean_train_loss = train_model(train_loader, beta, learning_rate)

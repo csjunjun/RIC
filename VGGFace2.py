@@ -39,16 +39,19 @@ def getCEloss(labels,outputs):
 
     return torch.clamp((i-j), min=-kappa)
     
-
 def attack1_loss(S_prime, mix_img, S,C,  B,labels):
     ''' Calculates loss specified on the paper.'''
+    
 
     loss_secret = torch.nn.functional.mse_loss(S_prime,  S*_std_torch+_mean_torch)
     loss_cover= torch.nn.functional.mse_loss(mix_img,  C)
     outputs = target_model(mix_img)
     classloss = torch.mean(getCEloss(labels,outputs))
     
-    loss_all =   B*loss_secret  + classloss
+    #loss_all =   B*loss_secret  + loss_cover + classloss
+    loss_all = B*loss_secret+classloss
+    #loss_all = -loss_cover + B * loss_secret + classloss + loss_cover2
+
     
     return loss_all, loss_secret,classloss,loss_cover
 
@@ -101,6 +104,8 @@ def load_checkpoint(filepath):
 
 
 
+
+
 def getAdvZ(img_size,labels,batch_size,train=False,seed=None):
     c=10
     k=10
@@ -146,49 +151,47 @@ def plotloss(train_losses,train_loss_secret_history,attloss_history,loss_cover_h
     plt.ylabel('Loss')
     plt.xlabel('Batch')
     plt.savefig('{}/coverlossCurve_{}.png'.format(outputname,epoch))  
+ 
+
    
 def train_model(train_loader, beta, learning_rate):
     
-
     train_loss_secret_history = []
     attloss_history = []
     loss_cover_history = []  
-    outputname = 'VGGFace2'
+
+    outputname ='output/vggface2'
     if not os.path.exists(outputname):
         os.mkdir(outputname)
-    
     for epoch in range(num_epochs):
-
-        # Train mode
         train_losses = []
+        # Train one epoch
         cover_succ = 0
-        for idx, train_batch in enumerate(train_loader):           
+        for idx, train_batch in enumerate(train_loader):         
             net.train()
-            if idx>5000:
-                break
+                      
             train_secrets, labels  = train_batch
             train_secrets = train_secrets[torch.where(labels<8631)]
             labels = labels[torch.where(labels<8631)]
             if len(labels)<1:
                 continue
             train_secrets = train_secrets.to(device)
+
             labels = labels.to(device)
             train_covers,succ = getAdvZ(face_size,labels,len(train_secrets),train=True)
             cover_succ+= int(succ)
             print("epo:{} att z succ rate:{}".format(epoch,cover_succ/((idx+1)*batch_size)))
-            
-            # Creates variable from secret and cover images
+         
             train_secrets = Variable(train_secrets, requires_grad=False)
             train_covers = Variable(train_covers, requires_grad=False)
 
-            # Forward + Backward + Optimize
-        
+
             optimizer.zero_grad()
             mix_img,recover_secret = net(train_secrets,train_covers) # to be [-1,1]
-            
+          
 
             train_loss, train_loss_secret,attloss,loss_cover = attack1_loss(recover_secret,mix_img, train_secrets,train_covers,beta,labels)
-            
+          
             if (idx+1)%print_freq == 0:
                 toshow = torch.cat((train_secrets[:4]*_std_torch+_mean_torch,train_covers[:4],mix_img[:4],recover_secret[:4]),dim=0)
                 imgg = make_grid(toshow,nrow=nrow_)
@@ -196,12 +199,14 @@ def train_model(train_loader, beta, learning_rate):
 
                 plotloss(train_losses,train_loss_secret_history,attloss_history,loss_cover_history,outputname,epoch)
                        
-            # Calculate loss and perform backprop  attack1_loss(S_prime, C_prime, S,C,  B,labels):
 
             train_loss.backward()
             optimizer.step()
-           
+          
+            # Saves training loss
             train_losses.append(float(train_loss.data))
+            
+
             train_loss_secret_history.append(float(train_loss_secret.data))
             attloss_history.append(float(attloss.data))
             loss_cover_history.append(float(loss_cover.data))
@@ -209,17 +214,21 @@ def train_model(train_loader, beta, learning_rate):
             print('Training: Batch {0}/{1}. Loss of {2:.4f},secret loss of {3:.4f}, attack1_loss of {4:.4f}, loss_cover {5:.5f}'\
                   .format(idx+1, len(train_loader), train_loss.data,  train_loss_secret.data,attloss.data,loss_cover))
     
+            # val 
             if (idx+1)%save_freq == 0 or train_num-idx*(batch_size+1)<=batch_size or idx==1:
-               
+                #val_loss, val_loss_secret,val_attloss,val_loss_cover = val(outputname,epoch)
+                #scheduler.step(val_loss_secret)
                 is_best = False
-                modelsavepath =MODELS_PATH+'Epoch_{}_{}'.format(epoch+1,outputname)
+                
+            
+                modelsavepath =outputname+'/Epoch_{}_{}_{}'.format(epoch+1,idx,outputname)
                 save_checkpoint({
             'epoch': epoch + 1,
             'state_dict': net.state_dict(),
             'optimizer' : optimizer.state_dict(),
-            'scheduler':scheduler.state_dict()
+            #'scheduler':scheduler.state_dict()
         },filename=modelsavepath,is_best=is_best)
-                
+               
              
         mean_train_loss = np.mean(train_losses)
     
@@ -227,9 +236,10 @@ def train_model(train_loader, beta, learning_rate):
         print ('Epoch [{0}/{1}], Average_loss: {2:.4f}'.format(
                 epoch+1, num_epochs, mean_train_loss))
         plotloss(train_losses,train_loss_secret_history,attloss_history,loss_cover_history,outputname,epoch) 
-    
+
     
     return net,mean_train_loss
+
     
 def save_checkpoint(state, filename,is_best=False):
     checkpointname = filename+'_checkpoint.pth.tar'
