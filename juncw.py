@@ -34,7 +34,7 @@ class CW(Attack):
     .. note:: Binary search for c is NOT IMPLEMENTED methods in the paper due to time consuming.
 
     """
-    def __init__(self, model, c=1e-4, kappa=0, steps=1000, lr=0.01,targeted=True,target_labels=None,seed=None,quan=False,noise_type='gaussian',mode='equal'):
+    def __init__(self, model, c=1e-4, kappa=0, steps=1000, lr=0.01,targeted=True,target_labels=None,seed=None,quan=False):
         super().__init__("CW", model)
         self.c = c
         self.kappa = kappa
@@ -45,8 +45,6 @@ class CW(Attack):
         self.target_labels = target_labels
         self.seed = seed
         self.quan = quan
-        self.noise =noise_type
-        self.mode  = mode
     def forward(self, images,labels):
         r"""
         Overridden.
@@ -90,12 +88,9 @@ class CW(Attack):
             correct = (pre == labels).float()
 
 
-            if self.mode =='min':
-                cost = self.c*f_loss -L2_loss
-            elif self.mode == 'equal':
-                cost = self.c*f_loss 
-            else:
-                cost = self.c*f_loss+L2_loss
+          
+            cost = self.c*f_loss 
+           
 
             optimizer.zero_grad()
             cost.backward()

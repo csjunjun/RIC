@@ -114,7 +114,7 @@ def getAdvZ(img_size,labels,batch_size,train=False,seed=None):
 
     st = 300
     z0 = torch.rand((batch_size,3,img_size,img_size))
-    cwatt = juncw.CW(target_model,c=c,kappa=k,steps=st,targeted=True,target_labels=labels,seed=seed,noise_type='uniform')
+    cwatt = juncw.CW(target_model,c=c,kappa=k,steps=st,targeted=True,target_labels=labels,seed=seed)
     adv = cwatt(z0,labels)
     outputs = target_model(adv)
     _,pre = torch.max(outputs,1)
@@ -169,7 +169,8 @@ def train_model(train_loader, beta, learning_rate):
         cover_succ = 0
         for idx, train_batch in enumerate(train_loader):         
             net.train()
-                      
+            if idx>=5000:
+                break
             train_secrets, labels  = train_batch
             train_secrets = train_secrets[torch.where(labels<8631)]
             labels = labels[torch.where(labels<8631)]
@@ -330,8 +331,8 @@ if __name__ == "__main__":
     print_freq = 200
     save_freq = 200
     #num_epochs = 10
-    num_epochs = 100
-    batch_size = 32
+    num_epochs = 30
+    batch_size = 64
     test_batch_size=5
     face_size = 160
     nrow_ = 4
@@ -359,7 +360,6 @@ if __name__ == "__main__":
     net = torch.nn.DataParallel(net).to(device)
     # Save optimizer
     optimizer = optim.Adam(net.parameters(), lr=learning_rate)
-    scheduler = ReduceLROnPlateau(optimizer, patience=5, factor=0.5,mode='min')    
     
     VGGFace2_train_data = VGGFace2(img_dir = VGGface2_basepath+'train/',mode="train")
     train_num =VGGFace2_train_data.imgnum

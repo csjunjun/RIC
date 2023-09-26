@@ -1515,19 +1515,5 @@ def testModelAcc():
         acc_num_total += acc_num 
     print("acc:{}".format(acc_num_total/total)) # [0,1]
 
-testModelAcc()
-#testLsb()
-#getmeanbit()
+
 test()
-#testOpenset()
-# #testVer()
-# if mode== 'combine':
-#     net, mean_train_loss = train_model(train_loader, beta, learning_rate)
-# else:
-#     encoder,decoder, mean_train_loss = train_model(train_loader, beta, learning_rate)
-# Plot loss through epochs
-# plt.plot(loss_history)
-# plt.title('Model loss')
-# plt.ylabel('Loss')
-# plt.xlabel('Batch')
-# plt.show()

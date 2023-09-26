@@ -93,22 +93,15 @@ def load_checkpoint(filepath,net_local=None):
     else:
         print("=> no checkpoint found at '{}'".format(filepath))
 
-def getAdvZ(img_size,labels,batch_size,minibs,typen='uniform',mode='equal'):
+def getAdvZ(img_size,labels,batch_size,minibs):
 
     c=10
     k=5
     st = 100
-    if typen =='uniform':
-        z0 = torch.rand((minibs,3,img_size,img_size))    
-        cwatt = juncw.CW(target_model,c=c,kappa=k,steps=st,targeted=True,target_labels=labels,noise_type='uniform',mode=mode)  
-    else:
-        st = 60
-        z0 = torch.randn((minibs,3,img_size,img_size))
-        z0 = (z0-torch.min(z0))/(torch.max(z0)-torch.min(z0))
-        cwatt = juncw.CW(target_model,c=c,kappa=k,steps=st,targeted=True,target_labels=labels,mode=mode)
-
-    succ = False
+    z0 = torch.rand((minibs,3,img_size,img_size))    
+    cwatt = juncw.CW(target_model,c=c,kappa=k,steps=st,targeted=True,target_labels=labels)  
    
+    succ = False
     adv = cwatt(z0,labels)
     del cwatt
     outputs = target_model(adv)
@@ -207,7 +200,7 @@ def train_model(train_loader, beta, learning_rate):
             train_secrets = train_secrets.to(device)
             
             labels = labels.to(device)
-            train_covers,succ = getAdvZ(imgsize,labels,batch_size,len(train_secrets),typen='uniform')
+            train_covers,succ = getAdvZ(imgsize,labels,batch_size,len(train_secrets))
             cover_succ+= int(succ)
             print("epo:{} att z succ rate:{}".format(epoch,cover_succ/((idx+1)*batch_size)))
 
@@ -305,7 +298,7 @@ def test():
         labels = labels.to(device)
 
         
-        train_covers,succ = getAdvZ(imgsize,labels,batch_size,len(train_secrets),typen='uniform',mode='equal')
+        train_covers,succ = getAdvZ(imgsize,labels,batch_size,len(train_secrets))
        
         # Creates variable from secret and cover images
         train_secrets = Variable(train_secrets, requires_grad=False)

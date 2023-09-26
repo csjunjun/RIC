@@ -28,7 +28,6 @@ class VGGFace2(Dataset):
                 transforms.ToTensor()
                 ])
         self.imgnum = len(filepaths)
-        self.train = train
         self.face_size = 160
         self.mtcnn =MTCNN(image_size=self.face_size)
         self.id_label_map = self.get_id_label_map('../data/vggface2/identity_meta2.csv')
