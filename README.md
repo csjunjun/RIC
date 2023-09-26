@@ -5,6 +5,7 @@ This is the official code for the paper titled as "Recoverable Privacy-Preservin
 ## Preparation
 Please download the datasets and the weight of RIC pre-trained on VGGFace2 or SVHN datasets from [GoogleDrive](https://drive.google.com/drive/folders/1YYEhhqvkO1VPrsbCx2rSTtY0PduxAd2P?usp=sharing).
 
+Put the model weights to the folder "Weights"
 For SVHN:
 The download process of the dataset will be automated.
 

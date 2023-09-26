@@ -60,51 +60,6 @@ def valmetric(S_prime, mix_img, S,C,  B,labels):
     return acc_num, np.sum(mse_s), np.sum(mse_c),np.sum(psnr),np.sum(ssim),np.sum(mean_pixel_error),np.sum(lpips_error),np.sum(lpips_sc),np.sum(mse_sc),np.sum(psnr_sc),np.sum(ssim_sc)
 
 
-def facevalmetric(S_prime, mix_img, S,C):
-    ''' Calculates loss specified on the paper.'''
-    embed_anchor = target_model(S)
-    embed = target_model(mix_img)
-    diff = torch.norm(embed-embed_anchor,dim=1)
-
-    acc_num = len(torch.where(diff<ver_threshold)[0])    
-    psnr, ssim, mse_s,mse_c = [], [], [],[]
-    norm_S =  convert1(S)
-    norm_S_prime = convert1(S_prime)
-    norm_miximg = convert1(mix_img)
-    norm_C = convert1(C)
-    for i in range(len(S_prime)):
-        # mse_s.append(mean_squared_error(norm_S_prime[i], norm_S[i]))
-        # mse_c.append(mean_squared_error(norm_miximg[i], norm_C[i]))
-        mse_s.append(float(torch.norm((S)[i]-S_prime[i])))
-        mse_c.append(float(torch.norm(C[i]-mix_img[i])))
-        psnr.append(peak_signal_noise_ratio(norm_S[i],norm_S_prime[i],data_range=255))
-        ssim.append(structural_similarity(norm_S[i],norm_S_prime[i],win_size=11, data_range=255.0, multichannel=True))
-    #ssim_secret =0 
-    return acc_num, np.sum(mse_s), np.sum(mse_c),np.sum(psnr),np.sum(ssim)
-
-def denormalize(image, std, mean):
-    ''' Denormalizes a tensor of images.'''
-
-    for t in range(3):
-        image[t, :, :] = (image[t, :, :] * std[t]) + mean[t]
-    return image
-
-def imshow(img, idx, learning_rate, beta):
-    '''Prints out an image given in tensor format.'''
-    
-    img = denormalize(img, std, mean)
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.title('Example '+str(idx)+', lr='+str(learning_rate)+', B='+str(beta))
-    plt.show()
-    return
-
-def gaussian(tensor, mean=0, stddev=0.1):
-    '''Adds random noise to a tensor.'''
-    
-    noise = torch.nn.init.normal(torch.Tensor(tensor.size()), 0, 0.1).to(device)
-    return Variable(tensor + noise)
-
 
   
 def load_checkpoint(filepath):
@@ -115,66 +70,12 @@ def load_checkpoint(filepath):
         start_epoch = checkpoint['epoch']
         
         net.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        #scheduler.load_state_dict(checkpoint['scheduler'])
+        
         print("=> loaded checkpoint (epoch {})"
                 .format(checkpoint['epoch']))
     else:
         print("=> no checkpoint found at '{}'".format(filepath))
 
-
-
-def get_id_label_map(meta_file):
-    N_IDENTITY = 9131  # total number of identities in VGG Face2
-    N_IDENTITY_PRETRAIN = 8631  # [0,8630]:training, [8631,9130] : tesing
-    identity_list = meta_file
-    #df = pd.read_csv(identity_list, sep=',\s+', quoting=csv.QUOTE_ALL, encoding="utf-8")
-    df = pd.read_csv(identity_list, sep=',')
-    df["class"] = -1
-    df.loc[df["Flag"] == 1, "class"] = range(N_IDENTITY_PRETRAIN)
-    df.loc[df["Flag"] == 0, "class"] = range(N_IDENTITY_PRETRAIN, N_IDENTITY)
-    # print(df)
-    key = df["Class_ID"].values
-    val = df["class"].values
-    id_label_dict = dict(zip(key, val))
-    return id_label_dict
-#id_label_map = get_id_label_map(VGGface2_basepath+'label/identity_meta2.csv')
-#https://discuss.pytorch.org/t/how-to-read-dataset-from-tar-files/47425
-
-def split_train_val_test(txt_path):
-    now = datetime.now() 
-    timestamp = datetime.timestamp(now)
-    timestamp = str(timestamp).split('.')[0]
-    df = pd.read_csv(txt_path, sep=' ', index_col=0)
-    img_names = df.index.values
-    np.random.shuffle(img_names)
-    trainfiles = img_names[:-(valnum+testnum)]
-    valfiles = img_names[-(valnum+testnum):-testnum]
-    testfiles = img_names[-testnum:]
-    np.save(MODELS_PATH+'trainfiles_{}.npy'.format(timestamp),trainfiles)
-    np.save(MODELS_PATH+'valfiles_{}.npy'.format(timestamp),valfiles)
-    np.save(MODELS_PATH+'testfile_{}.npy'.format(timestamp),testfiles)
-    print("trainfiles is saved as {}trainfiles_{}.npy".format(MODELS_PATH,timestamp))
-    print("valfiles is saved as {}valfiles_{}.npy".format(MODELS_PATH,timestamp))
-    print("testfiles is saved as {}testfile_{}.npy".format(MODELS_PATH,timestamp))
-    return trainfiles,valfiles
-#trainfiles,valfiles = split_train_val_test(VGGface2_basepath+'VGGFace2_train_list.txt')
-
-
-# Creates test set 
-# lwf_test_data = datasets.LFWPairs('/data2/junliu/data/',split='test',
-#         transform=train_transform,download=False)
-# lwf_test_data = datasets.LFWPeople('/data2/junliu/data/',split='test',
-#         transform=train_transform,download=False)
-# lwf_test_data = datasets.LFWPeople('/data2/junliu/data/',split="test",
-#         transform=transforms.Compose([
-#         transforms.Resize(256),
-#         transforms.RandomCrop(imgsize),
-#         transforms.ToTensor()
-#         ]),download=False)
-#VGGFace2_test_data = VGGFace2(txt_path=VGGface2_basepath+'test_list.txt',img_dir = VGGface2_basepath+'test/',transform=train_transform)
-
-# Creates test set
 
 
 def getAdvZ(img_size,labels,batch_size,train=False):
@@ -281,7 +182,6 @@ if __name__ == "__main__":
 
 
     batch_size = 5
-
     nrow_ = 4
 
     imgsize=224
@@ -292,10 +192,10 @@ if __name__ == "__main__":
 
     setSeed(1337)
 
-    TEST_PATH ='/data/junliu/ImageNet_val'
+    TEST_PATH ='data/ImageNet_val'
     device = torch.device("cuda:0" if cuda else "cpu")
     target_model = Resnet50_Imagenet()
-    #target_model = InceptionV3_Imagenet()
+    
     kappa = 5
 
     modellp = PerceptualSimilarity.models.PerceptualLoss(model='net-lin', net='alex', use_gpu=True, gpu_ids=[0])

@@ -4,6 +4,8 @@ from facenet_pytorch import MTCNN
 import pandas as pd
 import torchvision.transforms as transforms
 import numpy as np
+import torchvision
+from torch.utils.data import DataLoader
 
 class VGGFace2(Dataset):
     def __init__(self,  img_dir='data.tar', mode='train'):
@@ -78,3 +80,22 @@ class VGGFace2(Dataset):
             image = image.resize((self.face_size,self.face_size))
             face = (self.transform(image)-0.5)/0.5 # 此時face是0,1區間，要把它變得和mtcnn之後的-1,1一樣
         return face,self.id_label_map[label]
+    
+
+def getCifar10(data_dir,batchsize,train=True,resize=False,isshuffle=False,resize_v=32):
+    #transform_train = transforms.Compose([transforms.Resize(256), transforms.RandomHorizontalFlip(), transforms.ToTensor()])
+    #transform_test  = transforms.Compose([transforms.Resize(256), transforms.ToTensor()])
+    std = [0.5, 0.5, 0.5]
+    mean = [0.5, 0.5, 0.5]
+    transform_test  = transforms.Compose([       
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean,std=std)
+        ])
+
+    #train_data = torchvision.datasets.CIFAR10(data_dir, train=True, transform=transform_train, download=True)
+    test_data  = torchvision.datasets.CIFAR10(data_dir, train=True, transform=transform_test, download=False)
+
+    #train_loader  = DataLoader(train_data, batch_size=1, shuffle=True, num_workers=4,pin_memory=True, drop_last=True)
+    test_loader   = DataLoader(test_data,  batch_size=batchsize, shuffle=isshuffle, num_workers=1,
+                            pin_memory=True, drop_last=True)
+    return test_loader
