@@ -48,7 +48,7 @@ def attack1_loss(S_prime, mix_img, S,C,  B,labels):
     outputs = target_model(mix_img)
     classloss = torch.mean(getCEloss(labels,outputs))
     
-    loss_all =   B*loss_secret  + loss_cover + classloss
+    loss_all =   B*loss_secret  + classloss
     
     return loss_all, loss_secret,classloss,loss_cover
 
@@ -316,7 +316,6 @@ if __name__ == "__main__":
 
     stage = "test" # or train
 
-    cwd = os.getcwd()
     # Hyper Parameters
     print_freq = 200
     save_freq = 200
@@ -337,23 +336,14 @@ if __name__ == "__main__":
     setSeed(seed)
     print(seed)
 
-    MODELS_PATH = '/data/junliu/DeepSteg/output/'
-    # TRAIN_PATH = cwd+'/train/'
-    # VALID_PATH = cwd+'/valid/'
-    # VALID_PATH = cwd+'/sample/valid/'
-    # TRAIN_PATH = cwd+'/sample/train/'
-    # TEST_PATH = cwd+'/test/'
+
     VGGface2_basepath = '../data/vggface2/'
-    TRAIN_PATH = '/home/junliu/data/ImageNet_train_jinyu'
-    TEST_PATH ='/home/junliu/data/ImageNet_val'
-    if not os.path.exists(MODELS_PATH): os.mkdir(MODELS_PATH)
     device = torch.device("cuda:0" if cuda else "cpu")
     target_model =InceptionResnetV1(pretrained='vggface2').eval().to(device)
     target_model.classify = True
 
     kappa = 5
     modellp = PerceptualSimilarity.models.PerceptualLoss(model='net-lin', net='alex', use_gpu=True, gpu_ids=[0])
-
 
     net = Net()
     net = torch.nn.DataParallel(net).to(device)
