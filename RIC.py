@@ -1,9 +1,7 @@
 import torch.nn as nn
 import torch
-import numpy as np
-from PIL import Image
-from datetime import datetime
-import os
+
+
 class PrepNetwork(nn.Module):
     def __init__(self):
         super(PrepNetwork, self).__init__()
@@ -58,23 +56,14 @@ class PrepNetwork(nn.Module):
         p4 = self.finalP3(mid)
         p5 = self.finalP4(mid)
         p6 = self.finalP5(mid)
-        # from torchvision.utils import save_image
-        # for i in range(0,50):
-        #     save_image(p4[:,i,:,:],"features/p4_{}.jpg".format(i))
-        #     save_image(p5[:,i,:,:],"features/p5_{}.jpg".format(i))
-        #     save_image(p6[:,i,:,:],"features/p6_{}.jpg".format(i))
+
         p4 = self.se1(p4)
         p5 = self.se2(p5)
         p6 = self.se3(p6)
-        # for i in range(0,50):
-        #     save_image(p4[:,i,:,:],"features/p4se_{}.jpg".format(i))
-        #     save_image(p5[:,i,:,:],"features/p5se_{}.jpg".format(i))
-        #     save_image(p6[:,i,:,:],"features/p6se_{}.jpg".format(i))
+
         out = torch.cat((p4, p5, p6), 1)
         return out
-#在训练的时候，由于希望分类器分类正确，最后生成的mix image会逐渐学到secret image，所以这里可以先用一个inn将原始的secret image
-#转换到特征空间，然后在decode的时候逆回去
-# Hiding Network (5 conv layers)
+
 class HidingNetwork(nn.Module):
     def __init__(self,res=True,lambda_net=0.8):
         super(HidingNetwork, self).__init__()
@@ -203,12 +192,6 @@ class RevealNetwork(nn.Module):
         return out
 
 
-
-# Join three networks in one module
-
-
-#upsampler = Upsample(size=(imgsize, imgsize), align_corners=True, mode='bilinear')
-
 class SEModule(nn.Module):
     def __init__(self, channels, reduction, concat=False):
         super(SEModule, self).__init__()
@@ -236,84 +219,30 @@ class Net(nn.Module):
         self.m2 = HidingNetwork(resen,lambda_net)
         self.m3 = RevealNetwork(resde,lambda_net)
         self.act = nn.Sigmoid()
-    # def forward(self, secret, cover,labels,train=True):
-    #     x_1 = self.m1(secret)
-    #     mid = torch.cat((x_1, cover), 1)
-    #     x_2 = self.m2(mid,cover)
-        
-    #     x_2 = self.quan(x_2,type='noise',train=train)
-    #     #x_2 = torch.clamp(x_2,0,1)
-    #     random_cover,succ = getAdvZ(224,labels,batch_size)
 
-    #     x_3 = self.m3(x_2,random_cover) #训练的时候不要用clamp 或者 sigmoid
-    #     #x_3 = torch.clamp(x_3,0,1)
-    #     #x_3 = self.act(x_3)
-    #     return x_2, x_3
 
-    def forward(self, secret, cover,train=True,threat_type=-1,**args):
+    def forward(self, secret, cover,train=True,**args):
         x_1 = self.m1(secret)
         mid = torch.cat((x_1, cover), 1)
         x_2 = self.m2(mid,cover)
-        
-        
-        if threat_type == 0:
-            x_2 = self.getnoistadv(x_2,args['intensity'])
-        elif threat_type ==1:
-            x_2 = self.qf(x_2,args['intensity'],args['device'])
-        else:
-            x_2 = self.quan(x_2,type='noise',train=train)
-        #elif threat_type == 1:
-        #x_2 = self.getnoistadv(x_2)
-        #cover = self.getnoistadv(cover)
+     
+        x_2 = self.quan(x_2,type='noise',train=train)
+      
         if 'testSensitivity' not in args  or args['testSensitivity']==False:
-            x_3 = self.m3(x_2,cover) #训练的时候不要用clamp 或者 sigmoid
+            x_3 = self.m3(x_2,cover)
         elif args['testSensitivity']==True:
-            #setSeed(aseed)
-            #newcover = getAdvZNoSuc(160,labels,len(secret),train=False,seed=args['aseed'],isuniform=True)
+           
             diff = torch.norm(args['newcover']-cover)
-            #diff_z = torch.norm(z-z_.cuda())
             print("diff between newcover and cover:{}".format(diff))
-            
-            #print("diff z :{}",format(diff_z))
+                     
             x_3 = self.m3(x_2,args['newcover'])
             del cover,args
         else:
             print("error")
         if train==False:
             x_3 = torch.clamp(x_3,0,1)
-        #x_3 = self.act(x_3)
+        
         return x_2, x_3
-
-    def qf(self,x,qfv,device):
-        now = datetime.now()
-        if qfv==100:
-            return x
-        xr = torch.clamp((x*255).round(),0,255)
-        xr = np.array(xr.detach().cpu().numpy(),dtype=np.uint8)
-        res =None
-        timestamp = str(datetime.timestamp(datetime.now())).split(".")[0]+ str(datetime.timestamp(datetime.now())).split(".")[1]+str(np.random.randint(0,10000))
-        for xi in range(xr.shape[0]):  
-            filename =  'temp{}.jpg'.format(timestamp)    
-            Image.fromarray(xr[xi].transpose(1,2,0)).save(filename,quality=int(qfv))
-            x_ = torch.Tensor(np.array(Image.open(filename)).transpose(2,0,1)).to(device)
-            cmdstr = "rm {}".format(filename)
-            os.system(cmdstr)
-            x_ =x_.unsqueeze(0)/255.
-            if res is None:
-                res = x_
-            else:
-                res = torch.cat((res,x_),dim=0)
-        return res
-
-    def getnoistadv(self,x,intensity):
-        img_size = x.shape[2]
-        batch_size = x.shape[0]
-        #z0_noise = 0.1*torch.randn((batch_size,3,img_size,img_size)).to(device)
-        z0_noise = x.data.new(x.size()).normal_(0,intensity)
-        #z0_noise = 0.01*torch.rand((batch_size,3,img_size,img_size)).to(device)
-        x = x+z0_noise
-        x = torch.clamp(x,0,1)
-        return x
 
     def quan(self,x,type='noise',train=True):
         #x = torch.round(torch.clamp(x,0,1)*255.)/255.
